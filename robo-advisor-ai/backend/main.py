@@ -7,7 +7,6 @@ import os
 import json
 import asyncio
 from datetime import datetime
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,21 +21,17 @@ from db.memory import Memory
 
 # ── App Setup ──
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize resources on startup."""
-    app.state.memory = Memory()
-    print("🚀 RoboAdvisor AI backend started")
-    yield
-    print("👋 Shutting down")
-
-
 app = FastAPI(
     title="RoboAdvisor AI",
     description="AI-powered robo-advisor with Black-Litterman optimization",
     version="1.0.0",
-    lifespan=lifespan,
 )
+
+
+@app.on_event("startup")
+def startup():
+    app.state.memory = Memory()
+    print("🚀 RoboAdvisor AI backend started")
 
 # Allow React frontend to connect
 app.add_middleware(
