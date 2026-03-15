@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 const WS_BASE = window.location.hostname === 'localhost'
   ? 'ws://localhost:8000'
   : `wss://${window.location.hostname.replace('-5173', '-8000')}`
-  
+  +
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [sessionId, setSessionId] = useState(null)
