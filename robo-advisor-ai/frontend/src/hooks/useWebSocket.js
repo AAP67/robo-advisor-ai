@@ -3,9 +3,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 const API_HOST = 'robo-advisor-ai-production.up.railway.app'
 const WS_BASE = window.location.hostname === 'localhost'
   ? 'ws://localhost:8000'
-  : `wss://${API_HOST}`
+  : 'wss://' + API_HOST
 
-export function useWebSocket() {
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [sessionId, setSessionId] = useState(null)
@@ -14,20 +13,19 @@ export function useWebSocket() {
   const [isLoading, setIsLoading] = useState(false)
   const [research, setResearch] = useState(null)
   const [strategy, setStrategy] = useState(null)
-  
+
   const wsRef = useRef(null)
   const reconnectTimeout = useRef(null)
 
   const connect = useCallback((existingSessionId = 'new') => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
 
-    const ws = new WebSocket(`${WS_BASE}/ws/${existingSessionId}`)
+    const ws = new WebSocket(WS_BASE + '/ws/' + existingSessionId)
     wsRef.current = ws
 
     ws.onopen = () => {
       setConnected(true)
       setStatus('')
-      console.log('WebSocket connected')
     }
 
     ws.onmessage = (event) => {
@@ -37,19 +35,15 @@ export function useWebSocket() {
         case 'session':
           setSessionId(data.session_id)
           break
-
         case 'status':
           setStatus(data.message)
           break
-
         case 'research':
           setResearch(data.data)
           break
-
         case 'strategy':
           setStrategy(data.data)
           break
-
         case 'response':
           setMessages(prev => [...prev, {
             role: 'assistant',
@@ -58,61 +52,46 @@ export function useWebSocket() {
           setIsLoading(false)
           setStatus('')
           break
-
         case 'error':
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `Error: ${data.message}`,
+            content: 'Error: ' + data.message,
           }])
           setIsLoading(false)
           setStatus('')
           break
-
         default:
-          console.log('Unknown message type:', data)
+          break
       }
     }
 
     ws.onclose = () => {
       setConnected(false)
-      console.log('WebSocket disconnected')
-      // Auto-reconnect after 3 seconds
       reconnectTimeout.current = setTimeout(() => {
-        if (sessionId) connect(sessionId)
+        connect(existingSessionId)
       }, 3000)
     }
 
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err)
+    ws.onerror = () => {
       setConnected(false)
     }
-  }, [sessionId])
+  }, [])
 
   const sendMessage = useCallback((text) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('WebSocket not connected')
-      return
-    }
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
-    // Add user message to local state
     setMessages(prev => [...prev, { role: 'user', content: text }])
     setIsLoading(true)
     setStatus('Processing...')
 
-    // Send to server
     wsRef.current.send(JSON.stringify({ message: text }))
   }, [])
 
   const disconnect = useCallback(() => {
-    if (reconnectTimeout.current) {
-      clearTimeout(reconnectTimeout.current)
-    }
-    if (wsRef.current) {
-      wsRef.current.close()
-    }
+    if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current)
+    if (wsRef.current) wsRef.current.close()
   }, [])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => disconnect()
   }, [disconnect])
