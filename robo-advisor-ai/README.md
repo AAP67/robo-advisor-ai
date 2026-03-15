@@ -155,6 +155,4 @@ The confidence parameter is key: a high-confidence bullish view on NVDA shifts m
 - [ ] **Backtesting** — Historical performance simulation
 - [ ] **User authentication** — Multi-user support
 
-## Built With
 
-Built by [Karan Aggarwal](https://www.linkedin.com/in/karan-aggarwal-67/) — UC Berkeley Haas MBA, CFA Level 3 candidate.
