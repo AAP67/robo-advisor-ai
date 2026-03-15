@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
+const API_HOST = 'robo-advisor-ai-production.up.railway.app'
 const WS_BASE = window.location.hostname === 'localhost'
   ? 'ws://localhost:8000'
-  : `wss://${window.location.hostname.replace('-5173', '-8000')}`
-  +
+  : `wss://${API_HOST}`
+
+export function useWebSocket() {
 export function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [sessionId, setSessionId] = useState(null)
