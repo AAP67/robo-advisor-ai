@@ -40,9 +40,46 @@ export function useWebSocket() {
           break
         case 'research':
           setResearch(data.data)
+          // Signal to Francium parent
+          try {
+            const tickers = (data.data || []).map(r => r.ticker)
+            const sectors = [...new Set((data.data || []).map(r => r.fundamentals?.sector).filter(Boolean))]
+            window.parent.postMessage({
+              type: 'francium_signal',
+              toolId: 'robo-advisor',
+              event: 'research_received',
+              data: { tickers_researched: tickers, sectors }
+            }, '*')
+          } catch (e) { /* silent */ }
           break
         case 'strategy':
           setStrategy(data.data)
+          // Signal to Francium parent
+          try {
+            const s = data.data
+            const profile = s.investment_profile || {}
+            window.parent.postMessage({
+              type: 'francium_signal',
+              toolId: 'robo-advisor',
+              event: 'strategy_received',
+              data: {
+                risk_tolerance: profile.risk_tolerance,
+                risk_category: profile.risk_category,
+                capital: profile.capital,
+                horizon_years: profile.horizon_years,
+                sector_preferences: profile.sector_preferences || [],
+                constraints: profile.constraints || [],
+                expected_return: s.expected_annual_return,
+                expected_volatility: s.expected_volatility,
+                sharpe_ratio: s.sharpe_ratio,
+                top_allocations: (s.allocations || [])
+                  .filter(a => a.weight > 0.01)
+                  .sort((a, b) => b.weight - a.weight)
+                  .slice(0, 10)
+                  .map(a => ({ ticker: a.ticker, weight: a.weight }))
+              }
+            }, '*')
+          } catch (e) { /* silent */ }
           break
         case 'response':
           setMessages(prev => [...prev, {

@@ -19,8 +19,18 @@ export default function Chat({ messages, onSend, isLoading, status, connected })
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
-    onSend(input.trim())
+    const query = input.trim()
+    onSend(query)
     setInput('')
+    // Signal to Francium parent
+    try {
+      window.parent.postMessage({
+        type: 'francium_signal',
+        toolId: 'robo-advisor',
+        event: 'user_query',
+        data: { query }
+      }, '*')
+    } catch (e) { /* silent */ }
   }
 
   const renderContent = (text) => {
