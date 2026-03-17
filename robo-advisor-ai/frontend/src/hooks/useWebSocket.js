@@ -57,21 +57,15 @@ export function useWebSocket() {
           // Signal to Francium parent
           try {
             const s = data.data
-            const profile = s.investment_profile || {}
             window.parent.postMessage({
               type: 'francium_signal',
               toolId: 'robo-advisor',
               event: 'strategy_received',
               data: {
-                risk_tolerance: profile.risk_tolerance,
-                risk_category: profile.risk_category,
-                capital: profile.capital,
-                horizon_years: profile.horizon_years,
-                sector_preferences: profile.sector_preferences || [],
-                constraints: profile.constraints || [],
                 expected_return: s.expected_annual_return,
                 expected_volatility: s.expected_volatility,
                 sharpe_ratio: s.sharpe_ratio,
+                reasoning: (s.reasoning || '').slice(0, 500),
                 top_allocations: (s.allocations || [])
                   .filter(a => a.weight > 0.01)
                   .sort((a, b) => b.weight - a.weight)
