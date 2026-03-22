@@ -1,6 +1,7 @@
 """
 RoboAdvisor AI — Market Data Tool
-Fetches prices (yfinance) and fundamentals (Financial Modeling Prep).
+Fetches prices (yfinance) and fundamentals.
+Uses an in-memory cache so .info is only called once per ticker per session.
 """
 
 import yfinance as yf
@@ -11,16 +12,34 @@ class MarketData:
     """Fetch price data and fundamentals for stocks."""
     
     def __init__(self):
-        pass
+        self._info_cache: dict[str, dict] = {}
+        self._ticker_cache: dict[str, yf.Ticker] = {}
     
-    # ── Price Data (yfinance) ──
+    def _get_ticker(self, ticker: str) -> yf.Ticker:
+        """Get or create a yf.Ticker instance (reused for .history calls)."""
+        ticker = ticker.upper()
+        if ticker not in self._ticker_cache:
+            self._ticker_cache[ticker] = yf.Ticker(ticker)
+        return self._ticker_cache[ticker]
+    
+    def _get_info(self, ticker: str) -> dict:
+        """Get .info for a ticker, cached. This is the expensive call — only do it once."""
+        ticker = ticker.upper()
+        if ticker not in self._info_cache:
+            try:
+                stock = self._get_ticker(ticker)
+                self._info_cache[ticker] = stock.info or {}
+            except Exception as e:
+                print(f"Error fetching info for {ticker}: {e}")
+                self._info_cache[ticker] = {}
+        return self._info_cache[ticker]
+    
+    # ── Price Data ──
     
     def get_current_price(self, ticker: str) -> Optional[float]:
         """Get the latest price for a ticker."""
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            # Try multiple fields, yfinance can be inconsistent
+            info = self._get_info(ticker)
             price = (
                 info.get("currentPrice")
                 or info.get("regularMarketPrice")
@@ -41,7 +60,7 @@ class MarketData:
         Returns dict with 'dates', 'close', 'volume' lists.
         """
         try:
-            stock = yf.Ticker(ticker)
+            stock = self._get_ticker(ticker)
             hist = stock.history(period=period, interval=interval)
             
             if hist.empty:
@@ -62,8 +81,8 @@ class MarketData:
     def get_market_cap(self, ticker: str) -> Optional[float]:
         """Get market cap for a ticker."""
         try:
-            stock = yf.Ticker(ticker)
-            return stock.info.get("marketCap")
+            info = self._get_info(ticker)
+            return info.get("marketCap")
         except Exception:
             return None
     
@@ -112,56 +131,33 @@ class MarketData:
             print(f"Error computing covariance: {e}")
             return None
     
-    # ── Fundamentals (yfinance) ──
+    # ── Fundamentals ──
     
     def get_fundamentals(self, ticker: str) -> dict:
         """
-        Get key fundamental metrics from yfinance.
+        Get key fundamental metrics.
         Returns a flat dict matching our Fundamentals model.
         """
-        result = {
-            "market_cap": None,
-            "pe_ratio": None,
-            "forward_pe": None,
-            "price_to_book": None,
-            "revenue_growth_yoy": None,
-            "profit_margin": None,
-            "roe": None,
-            "debt_to_equity": None,
-            "dividend_yield": None,
-            "sector": None,
-            "industry": None,
+        info = self._get_info(ticker)
+        
+        return {
+            "market_cap": info.get("marketCap"),
+            "pe_ratio": info.get("trailingPE"),
+            "forward_pe": info.get("forwardPE"),
+            "price_to_book": info.get("priceToBook"),
+            "revenue_growth_yoy": info.get("revenueGrowth"),
+            "profit_margin": info.get("profitMargins"),
+            "roe": info.get("returnOnEquity"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "dividend_yield": info.get("dividendYield"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
         }
-        
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            
-            result["market_cap"] = info.get("marketCap")
-            result["pe_ratio"] = info.get("trailingPE")
-            result["forward_pe"] = info.get("forwardPE")
-            result["price_to_book"] = info.get("priceToBook")
-            result["profit_margin"] = info.get("profitMargins")
-            result["roe"] = info.get("returnOnEquity")
-            result["debt_to_equity"] = info.get("debtToEquity")
-            result["dividend_yield"] = info.get("dividendYield")
-            result["sector"] = info.get("sector")
-            result["industry"] = info.get("industry")
-            
-            # Revenue growth: compare last two annual revenues
-            rev_growth = info.get("revenueGrowth")
-            if rev_growth is not None:
-                result["revenue_growth_yoy"] = rev_growth
-            
-        except Exception as e:
-            print(f"yfinance fundamentals error for {ticker}: {e}")
-        
-        return result
     
     def get_company_name(self, ticker: str) -> Optional[str]:
-        """Get company name from yfinance."""
+        """Get company name."""
         try:
-            stock = yf.Ticker(ticker)
-            return stock.info.get("longName") or stock.info.get("shortName")
+            info = self._get_info(ticker)
+            return info.get("longName") or info.get("shortName")
         except Exception:
             return None

@@ -9,7 +9,6 @@ import json
 import anthropic
 from agents.state import AgentState
 from tools.research_pipeline import ResearchPipeline
-from tools.market_data import MarketData
 
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -48,20 +47,28 @@ def research_agent(state: AgentState) -> dict:
     tickers = _select_tickers(profile)
     print(f"   Selected: {', '.join(tickers)}")
     
-    # Step 2: Run research pipeline on each ticker
+    # Step 2: Run research pipeline on each ticker (parallel, with cache)
     print(f"\n📊 Researching {len(tickers)} tickers...")
-    pipeline = ResearchPipeline()
+    
+    # Try to get memory from app state for caching
+    memory = None
+    try:
+        from db.memory import Memory
+        memory = Memory()
+    except Exception:
+        pass
+    
+    pipeline = ResearchPipeline(memory=memory)
     research_results = pipeline.research_multiple(tickers)
     
-    # Step 3: Get market caps for Black-Litterman
+    # Step 3: Get market caps — reuse pipeline's cached MarketData
     print("\n💰 Fetching market caps...")
-    md = MarketData()
     researched_tickers = [r["ticker"] for r in research_results]
-    market_caps = md.get_multiple_market_caps(researched_tickers)
+    market_caps = pipeline.market.get_multiple_market_caps(researched_tickers)
     
     # Step 4: Compute covariance matrix
     print("\n📐 Computing covariance matrix...")
-    cov = md.get_covariance_matrix(researched_tickers)
+    cov = pipeline.market.get_covariance_matrix(researched_tickers)
     
     # Build summary message for the user
     summary = _build_research_summary(research_results)
@@ -89,7 +96,7 @@ def _select_tickers(profile: dict) -> list[str]:
     )
     
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=200,
         messages=[{"role": "user", "content": prompt}],
     )

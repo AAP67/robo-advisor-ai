@@ -89,7 +89,7 @@ Respond in this exact JSON format only, no other text:
         
         try:
             response = self.claude.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=300,
                 messages=[{"role": "user", "content": prompt}],
             )
