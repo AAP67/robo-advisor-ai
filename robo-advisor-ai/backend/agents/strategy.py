@@ -172,6 +172,7 @@ def strategy_agent(state: AgentState) -> dict:
         "expected_volatility": result.portfolio_volatility,
         "sharpe_ratio": result.sharpe_ratio,
         "risk_contributions": risk_contribs,
+        "benchmark": _get_benchmark_stats(),
         "bl_params": {
             "tau": 0.05,
             "risk_aversion": risk_aversion,
@@ -301,9 +302,52 @@ def _present_strategy(profile: dict, strategy: dict) -> str:
             if rc > 0.01:
                 lines.append(f"• {ticker}: {rc:.1%} of portfolio risk")
     
+    # Benchmark comparison
+    benchmark = strategy.get("benchmark", {})
+    if benchmark:
+        lines.append(f"\n📈 **vs S&P 500 Benchmark**")
+        ret_diff = strategy['expected_annual_return'] - benchmark.get('expected_return', 0)
+        vol_diff = strategy['expected_volatility'] - benchmark.get('volatility', 0)
+        sharpe_diff = strategy['sharpe_ratio'] - benchmark.get('sharpe_ratio', 0)
+        lines.append(f"• Return: {strategy['expected_annual_return']:.1%} vs {benchmark.get('expected_return', 0):.1%} ({'+' if ret_diff >= 0 else ''}{ret_diff:.1%})")
+        lines.append(f"• Volatility: {strategy['expected_volatility']:.1%} vs {benchmark.get('volatility', 0):.1%} ({'+' if vol_diff >= 0 else ''}{vol_diff:.1%})")
+        lines.append(f"• Sharpe: {strategy['sharpe_ratio']:.2f} vs {benchmark.get('sharpe_ratio', 0):.2f} ({'+' if sharpe_diff >= 0 else ''}{sharpe_diff:.2f})")
+    
     lines.append(f"\n💡 **Strategy**\n{strategy['reasoning']}")
     
     return "\n".join(lines)
+
+
+def _get_benchmark_stats() -> dict:
+    """Get S&P 500 benchmark stats from recent data."""
+    try:
+        import yfinance as yf
+        spy = yf.Ticker("SPY")
+        hist = spy.history(period="1y")
+        if not hist.empty:
+            returns = hist["Close"].pct_change().dropna()
+            annual_return = float((1 + returns.mean()) ** 252 - 1)
+            annual_vol = float(returns.std() * (252 ** 0.5))
+            risk_free = 0.045
+            sharpe = (annual_return - risk_free) / annual_vol if annual_vol > 0 else 0
+            return {
+                "ticker": "SPY",
+                "name": "S&P 500",
+                "expected_return": round(annual_return, 4),
+                "volatility": round(annual_vol, 4),
+                "sharpe_ratio": round(sharpe, 2),
+            }
+    except Exception as e:
+        print(f"Benchmark error: {e}")
+    
+    # Fallback: long-run averages
+    return {
+        "ticker": "SPY",
+        "name": "S&P 500",
+        "expected_return": 0.10,
+        "volatility": 0.16,
+        "sharpe_ratio": 0.34,
+    }
 
 
 def _risk_to_aversion(risk_tolerance: int) -> float:

@@ -18,6 +18,7 @@ load_dotenv()
 from graph import run_advisor, get_last_response
 from db.memory import Memory
 from tools.portfolio_import import router as portfolio_router
+from tools.export_report import router as export_router
 
 
 # ── App Setup ──
@@ -45,6 +46,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(portfolio_router, tags=["portfolio"])
+app.include_router(export_router, tags=["export"])
 
 
 # ── In-memory session store (maps session_id → agent state) ──
@@ -232,9 +234,13 @@ async def websocket_chat(ws: WebSocket, session_id: str = "new"):
                 except Exception:
                     pass
                 
+                # Attach profile for export functionality
+                strategy_data = state["strategy"].copy()
+                strategy_data["_profile"] = state.get("investment_profile", {})
+                
                 await ws.send_json({
                     "type": "strategy",
-                    "data": state["strategy"],
+                    "data": strategy_data,
                 })
             
             # Send the main response
