@@ -9,6 +9,7 @@ import json
 import anthropic
 from agents.state import AgentState
 from tools.research_pipeline import ResearchPipeline
+from status import emit_status
 
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -43,14 +44,14 @@ def research_agent(state: AgentState) -> dict:
     profile = state["investment_profile"]
     
     # Step 1: Ask Claude to pick tickers
-    print("\n🔍 Research Agent: Selecting tickers...")
+    emit_status("🔍 Selecting tickers for your portfolio...")
     tickers = _select_tickers(profile)
-    print(f"   Selected: {', '.join(tickers)}")
+    emit_status(f"📋 Selected: {', '.join(tickers)}")
     
     # Step 2: Run research pipeline on each ticker (parallel, with cache)
-    print(f"\n📊 Researching {len(tickers)} tickers...")
+    emit_status(f"📊 Researching {len(tickers)} tickers in parallel...")
     
-    # Try to get memory from app state for caching
+    # Try to get memory for caching
     memory = None
     try:
         from db.memory import Memory
@@ -58,16 +59,16 @@ def research_agent(state: AgentState) -> dict:
     except Exception:
         pass
     
-    pipeline = ResearchPipeline(memory=memory)
+    pipeline = ResearchPipeline(on_status=emit_status, memory=memory)
     research_results = pipeline.research_multiple(tickers)
     
     # Step 3: Get market caps — reuse pipeline's cached MarketData
-    print("\n💰 Fetching market caps...")
+    emit_status("💰 Fetching market capitalizations...")
     researched_tickers = [r["ticker"] for r in research_results]
     market_caps = pipeline.market.get_multiple_market_caps(researched_tickers)
     
     # Step 4: Compute covariance matrix
-    print("\n📐 Computing covariance matrix...")
+    emit_status("📐 Computing covariance matrix...")
     cov = pipeline.market.get_covariance_matrix(researched_tickers)
     
     # Build summary message for the user

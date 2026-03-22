@@ -180,11 +180,23 @@ async def websocket_chat(ws: WebSocket, session_id: str = "new"):
             # Save user message
             mem.save_message(session_id, "user", user_message)
             
-            # Send status updates while processing
+            # Send initial status
             await ws.send_json({"type": "status", "message": "Processing your request..."})
             
-            # Run agent graph in a thread (it's blocking/CPU-bound)
-            state = await asyncio.to_thread(run_advisor, user_message, state)
+            # Create a thread-safe status callback that sends to WebSocket
+            loop = asyncio.get_event_loop()
+            
+            def status_callback(message: str):
+                """Called from the worker thread — schedules async WebSocket send."""
+                asyncio.run_coroutine_threadsafe(
+                    ws.send_json({"type": "status", "message": message}),
+                    loop,
+                )
+            
+            # Run agent graph in a thread with status streaming
+            state = await asyncio.to_thread(
+                run_advisor, user_message, state, status_callback
+            )
             active_sessions[session_id] = state
             
             # Get response

@@ -10,6 +10,7 @@ import numpy as np
 import anthropic
 from agents.state import AgentState
 from optimizer.black_litterman import BlackLittermanOptimizer, BLView
+from status import emit_status
 
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -57,9 +58,9 @@ def strategy_agent(state: AgentState) -> dict:
         }
     
     # Step 1: Generate views via Claude
-    print("\n🧠 Strategy Agent: Generating market views...")
+    emit_status("🧠 Generating market views via Claude...")
     views_data = _generate_views(profile, research)
-    print(f"   Generated {len(views_data)} views")
+    emit_status(f"📊 Generated {len(views_data)} market views")
     
     # Step 2: Prepare optimizer inputs
     # Only use tickers we have both research AND market cap for
@@ -118,10 +119,10 @@ def strategy_agent(state: AgentState) -> dict:
     
     if not bl_views:
         # No views matched — use equilibrium (market cap) weights
-        print("   ⚠️ No views matched, using market-cap weights")
+        emit_status("⚠️ No views matched, using market-cap weights")
     
     # Step 4: Run Black-Litterman
-    print("\n📈 Running Black-Litterman optimization...")
+    emit_status("📈 Running Black-Litterman optimization...")
     
     # Risk aversion based on profile
     risk_aversion = _risk_to_aversion(profile["risk_tolerance"])
@@ -174,7 +175,7 @@ def strategy_agent(state: AgentState) -> dict:
     }
     
     # Step 6: Generate reasoning via Claude
-    print("\n💬 Generating strategy explanation...")
+    emit_status("💬 Generating strategy explanation...")
     reasoning = _generate_reasoning(profile, strategy, research)
     strategy["reasoning"] = reasoning
     
@@ -232,7 +233,7 @@ def _generate_views(profile: dict, research: list[dict]) -> list[dict]:
         if isinstance(views, list):
             return views
     except json.JSONDecodeError:
-        print(f"   ⚠️ Could not parse views: {raw[:100]}")
+        emit_status(f"⚠️ Could not parse views, using defaults")
     
     return []
 

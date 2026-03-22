@@ -8,11 +8,13 @@ Flow:
     → Yes → Research → Strategy → END
 """
 
+from typing import Callable, Optional
 from langgraph.graph import StateGraph, END
 from agents.state import AgentState
 from agents.intake import intake_agent
 from agents.research import research_agent
 from agents.strategy import strategy_agent
+from status import set_status_callback
 
 
 def should_continue_intake(state: AgentState) -> str:
@@ -56,17 +58,25 @@ def build_graph() -> StateGraph:
 advisor_graph = build_graph()
 
 
-def run_advisor(user_message: str, state: dict | None = None) -> dict:
+def run_advisor(
+    user_message: str,
+    state: dict | None = None,
+    status_callback: Optional[Callable[[str], None]] = None,
+) -> dict:
     """
     Run the advisor graph with a user message.
     
     Args:
         user_message: The user's input
         state: Previous state (for multi-turn conversations). None for first message.
+        status_callback: Optional function called with status strings during execution.
     
     Returns:
         Updated state dict with all agent outputs and messages.
     """
+    # Set the callback for this thread
+    set_status_callback(status_callback)
+    
     if state is None:
         # Fresh conversation
         state = {
@@ -90,6 +100,9 @@ def run_advisor(user_message: str, state: dict | None = None) -> dict:
     
     # Run the graph
     result = advisor_graph.invoke(state)
+    
+    # Clear callback
+    set_status_callback(None)
     
     return result
 
