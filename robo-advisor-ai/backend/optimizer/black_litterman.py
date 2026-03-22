@@ -31,11 +31,13 @@ class BLResult:
     portfolio_return: float          # Expected portfolio return
     portfolio_volatility: float      # Expected portfolio std dev
     sharpe_ratio: float              # Assuming risk-free rate
+    risk_contributions: np.ndarray   # % of portfolio risk from each asset
     
     def to_dict(self) -> dict:
         return {
             "weights": {t: round(float(w), 4) for t, w in zip(self.tickers, self.weights)},
             "expected_returns": {t: round(float(r), 4) for t, r in zip(self.tickers, self.expected_returns)},
+            "risk_contributions": {t: round(float(rc), 4) for t, rc in zip(self.tickers, self.risk_contributions)},
             "portfolio_return": round(self.portfolio_return, 4),
             "portfolio_volatility": round(self.portfolio_volatility, 4),
             "sharpe_ratio": round(self.sharpe_ratio, 4),
@@ -169,6 +171,28 @@ class BlackLittermanOptimizer:
         
         return weights
     
+    def _compute_risk_contributions(self, weights: np.ndarray) -> np.ndarray:
+        """
+        Compute marginal risk contribution for each asset.
+        
+        RC_i = w_i * (Sigma @ w)_i / sigma_p
+        
+        Each RC_i represents the fraction of total portfolio risk
+        attributable to asset i. They sum to 1.0.
+        """
+        port_vol = np.sqrt(weights @ self.sigma @ weights)
+        if port_vol == 0:
+            return np.zeros(self.n_assets)
+        
+        # Marginal contribution: (Sigma @ w) * w / sigma_p
+        marginal = (self.sigma @ weights) * weights / port_vol
+        
+        # Normalize to percentages that sum to 1
+        total_mc = marginal.sum()
+        if total_mc > 0:
+            return marginal / total_mc
+        return np.zeros(self.n_assets)
+    
     def optimize(
         self,
         views: list[BLView],
@@ -208,6 +232,9 @@ class BlackLittermanOptimizer:
         excess_return = port_return - self.risk_free_rate
         sharpe = excess_return / port_vol if port_vol > 0 else 0.0
         
+        # Step 6: Risk decomposition
+        risk_contrib = self._compute_risk_contributions(weights)
+        
         return BLResult(
             weights=weights,
             expected_returns=bl_returns,
@@ -215,6 +242,7 @@ class BlackLittermanOptimizer:
             portfolio_return=port_return,
             portfolio_volatility=port_vol,
             sharpe_ratio=sharpe,
+            risk_contributions=risk_contrib,
         )
     
     def optimize_no_views(self, risk_aversion: float = 2.5) -> BLResult:
@@ -231,6 +259,8 @@ class BlackLittermanOptimizer:
         excess_return = port_return - self.risk_free_rate
         sharpe = excess_return / port_vol if port_vol > 0 else 0.0
         
+        risk_contrib = self._compute_risk_contributions(weights)
+        
         return BLResult(
             weights=weights,
             expected_returns=pi,
@@ -238,4 +268,5 @@ class BlackLittermanOptimizer:
             portfolio_return=port_return,
             portfolio_volatility=port_vol,
             sharpe_ratio=sharpe,
+            risk_contributions=risk_contrib,
         )

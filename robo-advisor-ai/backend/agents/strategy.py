@@ -142,7 +142,8 @@ def strategy_agent(state: AgentState) -> dict:
     # Step 5: Build strategy output
     research_lookup = {r["ticker"]: r for r in research}
     allocations = []
-    for ticker, weight in zip(result.tickers, result.weights):
+    risk_contribs = {}
+    for i, (ticker, weight) in enumerate(zip(result.tickers, result.weights)):
         r = research_lookup.get(ticker, {})
         dollar_amount = weight * profile["capital"]
         price = r.get("current_price", 0)
@@ -151,6 +152,10 @@ def strategy_agent(state: AgentState) -> dict:
         # Find the view rationale
         view = next((v for v in views_data if v["ticker"] == ticker), {})
         
+        # Risk contribution
+        rc = float(result.risk_contributions[i]) if i < len(result.risk_contributions) else 0.0
+        risk_contribs[ticker] = round(rc, 4)
+        
         allocations.append({
             "ticker": ticker,
             "company_name": r.get("company_name"),
@@ -158,6 +163,7 @@ def strategy_agent(state: AgentState) -> dict:
             "shares": shares,
             "dollar_amount": round(dollar_amount, 2),
             "rationale": view.get("rationale", "Market-cap weighted allocation"),
+            "risk_contribution": round(rc, 4),
         })
     
     strategy = {
@@ -165,6 +171,7 @@ def strategy_agent(state: AgentState) -> dict:
         "expected_annual_return": result.portfolio_return,
         "expected_volatility": result.portfolio_volatility,
         "sharpe_ratio": result.sharpe_ratio,
+        "risk_contributions": risk_contribs,
         "bl_params": {
             "tau": 0.05,
             "risk_aversion": risk_aversion,
@@ -285,6 +292,15 @@ def _present_strategy(profile: dict, strategy: dict) -> str:
     lines.append(f"• Expected annual return: {strategy['expected_annual_return']:.1%}")
     lines.append(f"• Expected volatility: {strategy['expected_volatility']:.1%}")
     lines.append(f"• Sharpe ratio: {strategy['sharpe_ratio']:.2f}")
+    
+    # Risk decomposition
+    risk_contribs = strategy.get("risk_contributions", {})
+    if risk_contribs:
+        lines.append(f"\n⚠️ **Risk Decomposition**")
+        for ticker, rc in sorted(risk_contribs.items(), key=lambda x: x[1], reverse=True):
+            if rc > 0.01:
+                lines.append(f"• {ticker}: {rc:.1%} of portfolio risk")
+    
     lines.append(f"\n💡 **Strategy**\n{strategy['reasoning']}")
     
     return "\n".join(lines)

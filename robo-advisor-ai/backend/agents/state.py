@@ -38,3 +38,4 @@ class AgentState(TypedDict):
     # Control flow
     current_agent: str                   # Which agent is active
     error: Optional[str]                 # Error message if something fails
+    phase: str                           # "intake", "researching", "complete" — controls post-strategy routing

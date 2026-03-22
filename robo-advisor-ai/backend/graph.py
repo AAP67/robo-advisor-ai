@@ -91,6 +91,7 @@ def run_advisor(
             "strategy": None,
             "current_agent": "intake",
             "error": None,
+            "phase": "intake",
         }
     
     # Add user message
@@ -98,8 +99,40 @@ def run_advisor(
         {"role": "user", "content": user_message}
     ]
     
+    # If portfolio is already complete, classify: question or rebalance?
+    if state.get("phase") == "complete" and state.get("strategy"):
+        from agents.followup import detect_rebalance, followup_agent, rebalance_agent
+        
+        intent = detect_rebalance(user_message)
+        
+        if intent.get("intent") == "modify":
+            # Rebalance: update profile, reset state, re-run graph
+            modifications = intent.get("modifications", user_message)
+            state = rebalance_agent(user_message, modifications, state)
+            
+            # Now re-run the graph from research → strategy
+            result = advisor_graph.invoke(state)
+            
+            if result.get("strategy"):
+                result["phase"] = "complete"
+            
+            set_status_callback(None)
+            return result
+        else:
+            # Just a question — answer it
+            response = followup_agent(user_message, state)
+            state["messages"] = state.get("messages", []) + [
+                {"role": "assistant", "content": response}
+            ]
+            set_status_callback(None)
+            return state
+    
     # Run the graph
     result = advisor_graph.invoke(state)
+    
+    # Mark phase as complete if strategy was generated
+    if result.get("strategy"):
+        result["phase"] = "complete"
     
     # Clear callback
     set_status_callback(None)

@@ -17,6 +17,7 @@ load_dotenv()
 
 from graph import run_advisor, get_last_response
 from db.memory import Memory
+from tools.portfolio_import import router as portfolio_router
 
 
 # ── App Setup ──
@@ -41,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(portfolio_router, tags=["portfolio"])
 
 
 # ── In-memory session store (maps session_id → agent state) ──

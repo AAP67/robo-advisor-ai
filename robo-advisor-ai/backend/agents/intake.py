@@ -50,6 +50,14 @@ def intake_agent(state: AgentState) -> dict:
     Parse user input into an investment profile.
     Returns updated state fields.
     """
+    # Short-circuit: if profile is already complete (rebalancing), skip to research
+    if state.get("profile_complete") and state.get("investment_profile"):
+        return {
+            "messages": [],
+            "profile_complete": True,
+            "current_agent": "research",
+        }
+    
     # Build conversation for Claude
     messages = []
     for msg in state["messages"]:
